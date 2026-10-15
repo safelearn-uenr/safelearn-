@@ -48,8 +48,10 @@ import {
   formatGhs,
   getDemoState,
   getSeedState,
+  hasCourseAccess,
   Lesson,
-  saveDemoState
+  saveDemoState,
+  withCourseGrant
 } from "@/lib/demo-data";
 
 const navItems = [
@@ -186,7 +188,7 @@ export function StudentDashboard() {
     const check = window.setInterval(() => { const latest = getDemoState(); setSessionStale(Boolean(latest.activeSessionId && latest.activeSessionId !== ownSession)); }, 1000);
     return () => window.clearInterval(check);
   }, []);
-  const enrolled = state.courses.filter((course) => course.id !== "bundle");
+  const enrolled = state.courses.filter((course) => course.id !== "bundle" && hasCourseAccess(state, demoStudent.email, course.id));
   const pending = state.requests.filter((request) => request.contact === demoStudent.phone || request.contact === demoStudent.email).find((request) => request.status === "pending");
   const takeOver = () => { const latest = { ...getDemoState(), activeSessionId: `device-${Date.now()}` }; saveDemoState(latest); setToast("A new device took over the account. This tab will be locked."); };
   const resume = () => { const latest = { ...getDemoState(), activeSessionId: currentSession }; saveDemoState(latest); setSessionStale(false); setToast("This device is active again."); };
@@ -211,8 +213,8 @@ export function AdminDashboard() {
   const pending = state.requests.filter((request) => request.status === "pending");
   const currentCourse = state.courses.find((course) => course.id === selectedCourseId) ?? state.courses[0];
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
-  const approve = (id: string) => { const request = state.requests.find((item) => item.id === id); if (!request) return; const next = { ...state, requests: state.requests.map((item) => item.id === id ? { ...item, status: "approved" as const } : item), grantedContacts: Array.from(new Set([...state.grantedContacts, request.contact])) }; setState(next); saveDemoState(next); notify(`Access approved for ${request.student}.`); };
-  const grant = () => { if (!studentContact.trim()) return; const next = { ...getDemoState(), grantedContacts: Array.from(new Set([...getDemoState().grantedContacts, studentContact.trim()])) }; saveDemoState(next); setState(next); notify(`${findCourse(grantCourseId, next.courses).name} granted to ${studentContact.trim()}.`); setStudentContact(""); };
+  const approve = (id: string) => { const request = state.requests.find((item) => item.id === id); if (!request) return; const approvedState = { ...state, requests: state.requests.map((item) => item.id === id ? { ...item, status: "approved" as const } : item) }; const next = withCourseGrant(approvedState, request.contact, request.courseId, "approved"); setState(next); saveDemoState(next); notify(`Access approved for ${request.student}.`); };
+  const grant = () => { if (!studentContact.trim()) return; const base = getDemoState(); const next = withCourseGrant(base, studentContact.trim(), grantCourseId, "pos"); saveDemoState(next); setState(next); notify(`${findCourse(grantCourseId, next.courses).name} granted to ${studentContact.trim()}.`); setStudentContact(""); };
   const saveCourse = () => { const next = { ...state, courses: state.courses.map((course) => course.id === currentCourse.id ? { ...course, price: Number(draftPrice) || course.price } : course) }; setState(next); saveDemoState(next); notify(`${currentCourse.name} pricing updated.`); };
   return <AppShell eyebrow="Solo admin / Control center"><div className="page-wrap admin-page"><div className="admin-header"><div><div className="eyebrow"><span className="eyebrow-line" />Solo admin / 04</div><h1>Make access <em>move.</em></h1><p>One clean queue for payments, content, and the students waiting to get started.</p></div><div className="admin-identity"><div className="admin-shield"><ShieldCheck size={23} /></div><div><strong>Instructor control center</strong><span>Only your approval unlocks a pathway.</span></div></div></div>
     <div className="admin-metrics"><div className="admin-stat"><span className="admin-stat-icon saffron"><Clock3 size={17} /></span><div><strong>{String(pending.length).padStart(2, "0")}</strong><span>pending approvals</span></div></div><div className="admin-stat"><span className="admin-stat-icon mint"><UsersRound size={17} /></span><div><strong>91</strong><span>active learners</span></div></div><div className="admin-stat"><span className="admin-stat-icon blue"><BarChart3 size={17} /></span><div><strong>GHS 2.7k</strong><span>this month / collected</span></div></div><div className="admin-stat"><span className="admin-stat-icon ink"><Zap size={17} /></span><div><strong>04m</strong><span>avg. approval time</span></div></div></div>

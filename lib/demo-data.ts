@@ -32,10 +32,16 @@ export type PaymentRequest = {
   status: "pending" | "approved";
 };
 
+export type AccessGrant = {
+  contact: string;
+  courseId: string;
+  source: "seed" | "approved" | "pos";
+};
+
 export type DemoState = {
   courses: Course[];
   requests: PaymentRequest[];
-  grantedContacts: string[];
+  grantedAccess: AccessGrant[];
   activeSessionId: string;
 };
 
@@ -150,7 +156,10 @@ export function getSeedState(): DemoState {
   return {
     courses: seedCourses,
     requests: seedRequests,
-    grantedContacts: [demoStudent.email, demoStudent.phone],
+    grantedAccess: [
+      { contact: demoStudent.email, courseId: "course-a", source: "seed" },
+      { contact: demoStudent.email, courseId: "course-b", source: "seed" }
+    ],
     activeSessionId: ""
   };
 }
@@ -160,7 +169,12 @@ export function getDemoState(): DemoState {
   const raw = window.localStorage.getItem("safelearn-demo-state");
   if (!raw) return getSeedState();
   try {
-    return JSON.parse(raw) as DemoState;
+    const parsed = JSON.parse(raw) as Partial<DemoState>;
+    return {
+      ...getSeedState(),
+      ...parsed,
+      grantedAccess: Array.isArray(parsed.grantedAccess) ? parsed.grantedAccess : getSeedState().grantedAccess
+    };
   } catch {
     return getSeedState();
   }
@@ -178,6 +192,15 @@ export function findCourse(courseId: string, courses: Course[] = seedCourses) {
 
 export function findLesson(lessonId: string, courses: Course[] = seedCourses) {
   return courses.flatMap((course) => course.lessons).find((lesson) => lesson.id === lessonId);
+}
+
+export function hasCourseAccess(state: DemoState, contact: string, courseId: string) {
+  return state.grantedAccess.some((grant) => grant.contact === contact && grant.courseId === courseId);
+}
+
+export function withCourseGrant(state: DemoState, contact: string, courseId: string, source: AccessGrant["source"]): DemoState {
+  if (hasCourseAccess(state, contact, courseId)) return state;
+  return { ...state, grantedAccess: [...state.grantedAccess, { contact, courseId, source }] };
 }
 
 export function formatGhs(amount: number) {
