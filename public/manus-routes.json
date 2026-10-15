@@ -1,0 +1,1 @@
+{"routes":[{"path":"/","title":"SafeLearn catalog"},{"path":"/student","title":"Student dashboard"},{"path":"/admin","title":"Admin control center"},{"path":"/learn/:lessonId","title":"Protected lesson"}]}
