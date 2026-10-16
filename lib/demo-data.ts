@@ -46,120 +46,67 @@ export type DemoState = {
 };
 
 export const demoStudent = {
-  name: "Ama Owusu",
-  email: "ama.owusu@example.com",
+  name: "Student account",
+  email: "student@example.com",
   phone: "+233 24 555 0188"
 };
+
+export const supportWhatsAppNumber = "233246912468";
+
+const comingSoonLesson = (id: string, courseId: string, title: string): Lesson => ({
+  id,
+  courseId,
+  title,
+  duration: "Coming soon",
+  module: "Module 01 / Foundations",
+  videoUrl: "",
+  streamType: "Placeholder · upload Bunny / Cloudflare URL",
+  summary: "This lesson slot is ready for the instructor's protected stream. Simplifying complex courses for academic excellence."
+});
 
 export const seedCourses: Course[] = [
   {
     id: "course-a",
-    code: "CHEM 204",
-    name: "Organic Chemistry II",
-    eyebrow: "Course A · core access",
-    description: "Reaction mechanisms translated into repeatable exam patterns and short visual walkthroughs.",
+    code: "GIS",
+    name: "Geographic Information System (GIS)",
+    eyebrow: "Course A · GHS 30",
+    description: "Simplifying complex courses for academic excellence.",
     price: 30,
     accent: "saffron",
-    enrolledCount: 42,
-    lessons: [
-      {
-        id: "lesson-chem-1",
-        courseId: "course-a",
-        title: "Reading reaction mechanisms without guessing",
-        duration: "18 min",
-        module: "Module 01 / Mechanisms",
-        videoUrl: "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4",
-        streamType: "HTML5 demo · swap for Bunny / Cloudflare HLS",
-        summary: "A clean method for identifying electron movement, reaction families, and the one detail most exam questions hide."
-      },
-      {
-        id: "lesson-chem-2",
-        courseId: "course-a",
-        title: "Stereochemistry: the picture is the answer",
-        duration: "22 min",
-        module: "Module 02 / Structure",
-        videoUrl: "https://storage.googleapis.com/coverr-main/mp4/Footboys.mp4",
-        streamType: "HTML5 demo · swap for Bunny / Cloudflare HLS",
-        summary: "Use wedges, dashes, and priority rules as a quick visual system instead of memorizing isolated names."
-      }
-    ]
+    enrolledCount: 0,
+    lessons: [comingSoonLesson("lesson-gis-1", "course-a", "Lesson 1: Introduction (Coming Soon)")]
   },
   {
     id: "course-b",
-    code: "STAT 216",
-    name: "Statistics for Health Sciences",
-    eyebrow: "Course B · core access",
-    description: "A practical route from messy data to defensible conclusions, with worked examples in every lesson.",
+    code: "DSS-DM",
+    name: "Decision Support for Disaster Management",
+    eyebrow: "Course B · GHS 30",
+    description: "Simplifying complex courses for academic excellence.",
     price: 30,
     accent: "mint",
-    enrolledCount: 31,
-    lessons: [
-      {
-        id: "lesson-stat-1",
-        courseId: "course-b",
-        title: "Choosing the right test in 60 seconds",
-        duration: "16 min",
-        module: "Module 01 / Foundations",
-        videoUrl: "https://storage.googleapis.com/coverr-main/mp4/Accomplished.mp4",
-        streamType: "HTML5 demo · swap for Bunny / Cloudflare HLS",
-        summary: "A compact decision tree for matching research questions, variables, and tests before touching the calculator."
-      }
-    ]
+    enrolledCount: 0,
+    lessons: [comingSoonLesson("lesson-dss-dm-1", "course-b", "Lesson 1: Introduction (Coming Soon)")]
   },
   {
     id: "bundle",
     code: "BUNDLE",
-    name: "The Exam Clarity Bundle",
-    eyebrow: "Bundle · best value",
-    description: "Both courses, one clear route through the hard parts, and a lower total cost for serious revision weeks.",
+    name: "GIS & DSS-DM Complete Package (Courses A + B)",
+    eyebrow: "Bundle · GHS 60",
+    description: "Courses A + B together for one complete learning package.",
     price: 60,
     accent: "blue",
-    enrolledCount: 18,
+    enrolledCount: 0,
     lessons: []
   }
 ];
 
-export const seedRequests: PaymentRequest[] = [
-  {
-    id: "request-1",
-    student: "Kwame Mensah",
-    contact: "+233 55 201 9921",
-    courseId: "course-b",
-    amount: 30,
-    transactionId: "MOMO-816204",
-    submittedAt: "Today · 09:42",
-    status: "pending"
-  },
-  {
-    id: "request-2",
-    student: "Esi Addo",
-    contact: "esi.addo@example.com",
-    courseId: "course-a",
-    amount: 30,
-    transactionId: "MOMO-816119",
-    submittedAt: "Today · 08:57",
-    status: "pending"
-  },
-  {
-    id: "request-3",
-    student: "Nana Boateng",
-    contact: "+233 20 880 1133",
-    courseId: "bundle",
-    amount: 60,
-    transactionId: "MOMO-815962",
-    submittedAt: "Yesterday · 17:26",
-    status: "approved"
-  }
-];
+export const seedRequests: PaymentRequest[] = [];
 
 export function getSeedState(): DemoState {
   return {
     courses: seedCourses,
     requests: seedRequests,
-    grantedAccess: [
-      { contact: demoStudent.email, courseId: "course-a", source: "seed" },
-      { contact: demoStudent.email, courseId: "course-b", source: "seed" }
-    ],
+    grantedAccess: [],
     activeSessionId: ""
   };
 }
@@ -173,7 +120,8 @@ export function getDemoState(): DemoState {
     return {
       ...getSeedState(),
       ...parsed,
-      grantedAccess: Array.isArray(parsed.grantedAccess) ? parsed.grantedAccess : getSeedState().grantedAccess
+      grantedAccess: Array.isArray(parsed.grantedAccess) ? parsed.grantedAccess : [],
+      requests: Array.isArray(parsed.requests) ? parsed.requests : []
     };
   } catch {
     return getSeedState();
@@ -187,7 +135,7 @@ export function saveDemoState(state: DemoState) {
 }
 
 export function findCourse(courseId: string, courses: Course[] = seedCourses) {
-  return courses.find((course) => course.id === courseId) ?? seedCourses[0];
+  return courses.find((course) => course.id === courseId) ?? courses[0] ?? seedCourses[0];
 }
 
 export function findLesson(lessonId: string, courses: Course[] = seedCourses) {
