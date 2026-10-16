@@ -4,11 +4,14 @@ create extension if not exists "uuid-ossp";
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
+  email text,
   phone text,
   role text not null default 'student' check (role in ('student', 'admin')),
   active_session_id text,
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists email text;
 
 create table if not exists public.courses (
   id uuid primary key default uuid_generate_v4(),
@@ -68,9 +71,9 @@ alter table public.payment_requests enable row level security;
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email))
-  on conflict (id) do nothing;
+  insert into public.profiles (id, full_name, email)
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email), new.email)
+  on conflict (id) do update set email = excluded.email;
   return new;
 end;
 $$;

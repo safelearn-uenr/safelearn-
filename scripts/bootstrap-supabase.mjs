@@ -120,6 +120,7 @@ for (const email of adminEmails) {
   }
   const { error: profileError } = await supabase.from("profiles").upsert({
     id: user.id,
+    email: user.email?.toLowerCase() || email.toLowerCase(),
     full_name: user.user_metadata?.full_name || email.split("@")[0],
     role: "admin"
   }, { onConflict: "id" });

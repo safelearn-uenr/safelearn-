@@ -36,7 +36,7 @@ export type PaymentRequest = {
 export type AccessGrant = {
   contact: string;
   courseId: string;
-  source: "seed" | "approved" | "pos";
+  source: "seed" | "approved" | "pos" | "self_serve" | "bundle";
 };
 
 export type DemoState = {
