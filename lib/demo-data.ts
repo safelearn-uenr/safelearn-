@@ -1,5 +1,6 @@
 export type Course = {
   id: string;
+  databaseId?: string;
   code: string;
   name: string;
   eyebrow: string;

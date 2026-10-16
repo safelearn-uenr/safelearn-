@@ -39,6 +39,8 @@ import {
   Zap
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { fetchLiveCourses, sendMagicLink, submitLivePaymentRequest } from "@/lib/live-data";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   Course,
   DemoState,
@@ -109,10 +111,10 @@ export function SectionHeading({ eyebrow, title, copy, action }: { eyebrow: stri
   return <div className="section-heading"><div><div className="eyebrow"><span className="eyebrow-line" />{eyebrow}</div><h2>{title}</h2>{copy && <p>{copy}</p>}</div>{action}</div>;
 }
 
-function CourseCard({ course, enrolled = false, onBuy }: { course: Course; enrolled?: boolean; onBuy?: (course: Course) => void }) {
+function CourseCard({ course, index, enrolled = false, onBuy }: { course: Course; index: number; enrolled?: boolean; onBuy?: (course: Course) => void }) {
   const accentClass = `course-accent-${course.accent}`;
   return <article className={`course-card ${accentClass}`}>
-    <div className="course-card-top"><span className="course-code">{course.code}</span><span className="course-index">0{course.id === "course-a" ? 1 : course.id === "course-b" ? 2 : 3}</span></div>
+    <div className="course-card-top"><span className="course-code">{course.code}</span><span className="course-index">0{index + 1}</span></div>
     <div className="course-icon"><GraduationCap size={21} /></div>
     <div className="course-copy"><span className="course-eyebrow">{course.eyebrow}</span><h3>{course.name}</h3><p>{course.description}</p></div>
     <div className="course-card-bottom"><div><span className="price-label">course access</span><strong>{formatGhs(course.price)}</strong></div>{enrolled ? <Link href={course.lessons[0] ? `/learn/${course.lessons[0].id}` : "/student"} className="icon-button" aria-label="Continue course"><Play size={17} fill="currentColor" /></Link> : <button className="text-button" onClick={() => onBuy?.(course)}>Request access <ArrowRight size={15} /></button>}</div>
@@ -122,7 +124,10 @@ function CourseCard({ course, enrolled = false, onBuy }: { course: Course; enrol
 export function HomePage() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [toast, setToast] = useState("");
-  const state = getSeedState();
+  const [state, setState] = useState<DemoState>(() => getSeedState());
+  useEffect(() => {
+    fetchLiveCourses().then((courses) => setState((current) => ({ ...current, courses }))).catch(() => undefined);
+  }, []);
   const setToastMessage = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
   return <AppShell eyebrow="Student access layer">
     <div className="page-wrap home-page">
@@ -146,8 +151,8 @@ export function HomePage() {
 
       <section className="signal-strip"><div className="signal-item"><span className="signal-number">01</span><div><strong>Pick a pathway</strong><span>Course or bundle</span></div></div><div className="signal-arrow"><ArrowRight size={17} /></div><div className="signal-item"><span className="signal-number">02</span><div><strong>Send your reference</strong><span>Manual MoMo handoff</span></div></div><div className="signal-arrow"><ArrowRight size={17} /></div><div className="signal-item"><span className="signal-number">03</span><div><strong>Get to the lesson</strong><span>Access after approval</span></div></div></section>
 
-      <section id="courses" className="content-section"><SectionHeading eyebrow="Course catalog / 2026" title="Pick the topic that keeps circling back." copy="Every pathway is built around a clear first win. Start small, then stack your progress." action={<div className="section-meta"><span className="meta-count">03</span><span>active pathways</span></div>} />
-        <div className="course-grid">{state.courses.map((course) => <CourseCard key={course.id} course={course} onBuy={setSelectedCourse} />)}</div>
+      <section id="courses" className="content-section"><SectionHeading eyebrow="Course catalog / 2026" title="Pick the topic that keeps circling back." copy="Every pathway is built around a clear first win. Start small, then stack your progress." action={<div className="section-meta"><span className="meta-count">{String(state.courses.length).padStart(2, "0")}</span><span>active pathways</span></div>} />
+        <div className="course-grid">{state.courses.map((course, index) => <CourseCard key={course.id} course={course} index={index} onBuy={setSelectedCourse} />)}</div>
       </section>
 
       <section className="feature-band"><div className="feature-band-mark"><Video size={22} /></div><div><div className="eyebrow"><span className="eyebrow-line" />Once access is yours</div><h2>Study with a little less friction.</h2><p>Watch from one active device, keep your identity visible on the player, and ask the instructor the exact question you are stuck on.</p></div><Link href="/student" className="feature-band-link">See my learning <ArrowRight size={16} /></Link></section>
@@ -163,15 +168,25 @@ function PaymentModal({ course, onClose, onSubmitted }: { course: Course; onClos
   const [transactionId, setTransactionId] = useState("");
   const [contact, setContact] = useState(demoStudent.phone);
   const [submitted, setSubmitted] = useState(false);
-  const submit = () => {
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const submit = async () => {
     if (!transactionId.trim()) return;
-    const state = getDemoState();
-    state.requests = [{ id: `request-${Date.now()}`, student: demoStudent.name, contact, courseId: course.id, amount: course.price, transactionId: transactionId.trim(), submittedAt: "Just now", status: "pending" }, ...state.requests];
-    saveDemoState(state);
-    setSubmitted(true);
-    window.setTimeout(() => onSubmitted("Request received. Your access is waiting for one clean approval."), 700);
+    setSubmitting(true); setError("");
+    try {
+      const { data: { user } } = await getSupabaseBrowserClient().auth.getUser();
+      if (!user) {
+        await sendMagicLink(contact.trim());
+        onSubmitted("Check your email for a secure SafeLearn sign-in link, then resubmit your payment reference.");
+        return;
+      }
+      await submitLivePaymentRequest(course, contact.trim(), transactionId.trim());
+      setSubmitted(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not submit the payment request.");
+    } finally { setSubmitting(false); }
   };
-  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Request course access"><div className="payment-modal"><button className="modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>{submitted ? <div className="modal-success"><div className="success-icon"><Check size={24} /></div><div className="eyebrow"><span className="eyebrow-line" />Reference received</div><h2>Access is in the queue.</h2><p>We will match <strong>{transactionId}</strong> to your {course.name} request and unlock the course after approval.</p><div className="receipt-row"><span>Course</span><strong>{course.name}</strong></div><div className="receipt-row"><span>Amount</span><strong>{formatGhs(course.price)}</strong></div></div> : <><div className="modal-kicker">REQUEST ACCESS / {course.code}</div><h2>Make the handoff, then keep studying.</h2><p className="modal-lede">Send {formatGhs(course.price)} to the MoMo number below. Then paste your transaction ID so the admin can approve your access.</p><div className="momo-card"><div className="momo-icon"><Smartphone size={18} /></div><div><span>Mobile Money</span><strong>+233 24 555 0188</strong><small>SafeLearn App · MTN MoMo</small></div><button className="copy-button" onClick={() => navigator.clipboard?.writeText("+233 24 555 0188")}><Copy size={15} /> Copy</button></div><label className="field-label">Your email or phone<input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="e.g. +233 24 555 0188" /></label><label className="field-label">Transaction ID<input value={transactionId} onChange={(event) => setTransactionId(event.target.value)} placeholder="e.g. MOMO-816204" /></label><button className="primary-button full-button" onClick={submit} disabled={!transactionId.trim()}>Submit for approval <Send size={16} /></button><div className="modal-footnote"><ShieldCheck size={15} /> Approval is manual and usually same day.</div></>}</div></div>;
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Request course access"><div className="payment-modal"><button className="modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>{submitted ? <div className="modal-success"><div className="success-icon"><Check size={24} /></div><div className="eyebrow"><span className="eyebrow-line" />Reference received</div><h2>Access is in the queue.</h2><p>We will match <strong>{transactionId}</strong> to your {course.name} request and unlock the course after approval.</p><div className="receipt-row"><span>Course</span><strong>{course.name}</strong></div><div className="receipt-row"><span>Amount</span><strong>{formatGhs(course.price)}</strong></div></div> : <><div className="modal-kicker">REQUEST ACCESS / {course.code}</div><h2>Make the handoff, then keep studying.</h2><p className="modal-lede">Send {formatGhs(course.price)} to the MoMo number below. Then paste your transaction ID so the admin can approve your access.</p><div className="momo-card"><div className="momo-icon"><Smartphone size={18} /></div><div><span>Mobile Money</span><strong>Payment number pending</strong><small>Configure the final MoMo number before launch.</small></div></div><label className="field-label">Your email<input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="you@example.com" type="email" /></label><label className="field-label">Transaction ID<input value={transactionId} onChange={(event) => setTransactionId(event.target.value)} placeholder="e.g. MOMO-816204" /></label>{error && <div className="stale-alert"><span>{error}</span></div>}<button className="primary-button full-button" onClick={submit} disabled={!transactionId.trim() || !contact.trim() || submitting}>{submitting ? "Sending…" : "Submit for approval"} <Send size={16} /></button><div className="modal-footnote"><ShieldCheck size={15} /> Approval is manual and usually same day.</div></>}</div></div>;
 }
 
 export function StudentDashboard() {
@@ -189,8 +204,10 @@ export function StudentDashboard() {
     const check = window.setInterval(() => { const latest = getDemoState(); setSessionStale(Boolean(latest.activeSessionId && latest.activeSessionId !== ownSession)); }, 1000);
     return () => window.clearInterval(check);
   }, []);
+  useEffect(() => { fetchLiveCourses().then((courses) => setState((current) => ({ ...current, courses }))).catch(() => undefined); }, []);
   const enrolled = state.courses.filter((course) => course.id !== "bundle" && hasCourseAccess(state, demoStudent.email, course.id));
   const pending = state.requests.filter((request) => request.contact === demoStudent.phone || request.contact === demoStudent.email).find((request) => request.status === "pending");
+  const nextLesson = enrolled.flatMap((course) => course.lessons).find(Boolean);
   const takeOver = () => { const latest = { ...getDemoState(), activeSessionId: `device-${Date.now()}` }; saveDemoState(latest); setToast("A new device took over the account. This tab will be locked."); };
   const resume = () => { const latest = { ...getDemoState(), activeSessionId: currentSession }; saveDemoState(latest); setSessionStale(false); setToast("This device is active again."); };
   return <AppShell eyebrow="My learning / Ama Owusu"><div className="page-wrap dashboard-page"><div className="dashboard-header"><div><div className="eyebrow"><span className="eyebrow-line" />Student dashboard / 01</div><h1>Keep the hard part <em>moving.</em></h1><p>Good to see you, Ama. Your enrolled lessons and next best action are here.</p></div><div className="identity-card"><span className="avatar avatar-large">AO</span><div><strong>{demoStudent.name}</strong><span>{demoStudent.email}</span></div><StatusChip tone="success">verified</StatusChip></div></div>
@@ -198,7 +215,7 @@ export function StudentDashboard() {
     <section className="session-lock-banner"><div className="session-lock-icon"><KeyRound size={20} /></div><div><strong>Single-device session is on.</strong><span>Starting a session elsewhere signs this device out before a lesson can load.</span></div><button className="secondary-button compact-button" onClick={takeOver}>Simulate another device <Smartphone size={15} /></button></section>
     {sessionStale && <div className="stale-alert"><div><LockKeyhole size={18} /><div><strong>Logged in on another device.</strong><span>Please log in again to continue.</span></div></div><button className="primary-button compact-button" onClick={resume}>Reactivate this device <RotateCcw size={15} /></button></div>}
     <section className="content-section compact-section"><SectionHeading eyebrow="My enrolled courses" title="Your study shelf" copy="Approved access appears here. Your next lesson is one tap away." action={<span className="section-meta">{enrolled.length} pathways</span>} /><div className="enrolled-list">{enrolled.map((course, index) => { const lesson = course.lessons[0]; return <article className="enrolled-card" key={course.id}><div className={`enrolled-number enrolled-number-${course.accent}`}>0{index + 1}</div><div className="enrolled-main"><div className="course-card-top"><span className="course-code">{course.code}</span><StatusChip tone="success">access granted</StatusChip></div><h3>{course.name}</h3><p>{course.lessons.length} short lessons · {course.enrolledCount} learners taking this path</p><div className="progress-line"><span style={{ width: index === 0 ? "42%" : "18%" }} /></div><div className="progress-label"><span>{index === 0 ? "42% complete" : "Ready to start"}</span><span>{course.lessons.length} lessons</span></div></div><div className="enrolled-action">{lesson ? <Link href={`/learn/${lesson.id}`} className="primary-button compact-button">Continue <ArrowRight size={15} /></Link> : <span className="status-chip">Coming soon</span>}</div></article>; })}</div></section>
-    <section className="dashboard-lower"><div className="next-card"><div className="eyebrow"><span className="eyebrow-line" />Next up</div><h3>Reading reaction mechanisms without guessing</h3><p>Pick up in Module 01 / Mechanisms with a short route through electron movement.</p><Link href="/learn/lesson-chem-1" className="text-button">Resume lesson <Play size={15} fill="currentColor" /></Link></div><div className="pending-card"><div className="pending-card-top"><div className="eyebrow"><span className="eyebrow-line" />Payment handoff</div>{pending ? <StatusChip tone="warning">awaiting approval</StatusChip> : <StatusChip tone="success">all clear</StatusChip>}</div><h3>{pending ? "Your request is in the queue." : "No payment actions waiting."}</h3><p>{pending ? `We are matching ${pending.transactionId} to ${findCourse(pending.courseId, state.courses).name}.` : "Browse the catalog when you are ready for another pathway."}</p><Link href="/" className="secondary-button compact-button">Browse catalog <ArrowRight size={15} /></Link></div></section>
+    <section className="dashboard-lower"><div className="next-card"><div className="eyebrow"><span className="eyebrow-line" />Next up</div><h3>{nextLesson?.title ?? "Your first lesson is coming soon."}</h3><p>{nextLesson?.summary ?? "Approved course access and instructor video slots will appear here."}</p>{nextLesson ? <Link href={`/learn/${nextLesson.id}`} className="text-button">Resume lesson <Play size={15} fill="currentColor" /></Link> : <span className="text-button">Coming soon</span>}</div><div className="pending-card"><div className="pending-card-top"><div className="eyebrow"><span className="eyebrow-line" />Payment handoff</div>{pending ? <StatusChip tone="warning">awaiting approval</StatusChip> : <StatusChip tone="success">all clear</StatusChip>}</div><h3>{pending ? "Your request is in the queue." : "No payment actions waiting."}</h3><p>{pending ? `We are matching ${pending.transactionId} to ${findCourse(pending.courseId, state.courses).name}.` : "Browse the catalog when you are ready for another pathway."}</p><Link href="/" className="secondary-button compact-button">Browse catalog <ArrowRight size={15} /></Link></div></section>
     <section className="help-strip"><div className="help-icon"><Headphones size={19} /></div><div><strong>Need a second explanation?</strong><span>Open WhatsApp below any lesson and send the exact title you are stuck on.</span></div><a className="whatsapp-link" href={`https://wa.me/${supportWhatsAppNumber}?text=${encodeURIComponent("Hi SafeLearn, I am stuck on a lesson.")}`} target="_blank" rel="noreferrer">Ask on WhatsApp <ExternalLink size={15} /></a></section>
   </div>{toast && <Toast message={toast} />}</AppShell>;
 }
@@ -210,7 +227,7 @@ export function AdminDashboard() {
   const [grantCourseId, setGrantCourseId] = useState("course-a");
   const [toast, setToast] = useState("");
   const [draftPrice, setDraftPrice] = useState("30");
-  useEffect(() => { const loaded = getDemoState(); setState(loaded); setDraftPrice(String(loaded.courses[0]?.price ?? 30)); }, []);
+  useEffect(() => { const loaded = getDemoState(); setState(loaded); setDraftPrice(String(loaded.courses[0]?.price ?? 30)); fetchLiveCourses().then((courses) => setState((current) => ({ ...current, courses }))).catch(() => undefined); }, []);
   const pending = state.requests.filter((request) => request.status === "pending");
   const currentCourse = state.courses.find((course) => course.id === selectedCourseId) ?? state.courses[0];
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
@@ -241,6 +258,7 @@ export function LessonPage({ lessonId }: { lessonId: string }) {
     const check = window.setInterval(() => { const current = getDemoState(); setSessionStale(Boolean(current.activeSessionId && current.activeSessionId !== ownSession)); }, 800);
     return () => window.clearInterval(check);
   }, [lessonId]);
+  useEffect(() => { fetchLiveCourses().then((courses) => { setState((current) => ({ ...current, courses })); setLesson(findLesson(lessonId, courses)); }).catch(() => undefined); }, [lessonId]);
   if (!lesson) return <AppShell eyebrow="Lesson not found"><div className="empty-state"><div className="empty-icon"><BookOpen size={23} /></div><h1>That lesson moved.</h1><p>Return to your learning shelf and pick the next clear step.</p><Link href="/student" className="primary-button">Back to learning <ArrowRight size={16} /></Link></div></AppShell>;
   const course = findCourse(lesson.courseId, state.courses);
   return <AppShell eyebrow={`Protected lesson / ${course.code}`}><div className="lesson-page"><div className="lesson-breadcrumb"><Link href="/student">My learning</Link><ChevronDown size={14} /><span>{course.name}</span><ChevronDown size={14} /><strong>{lesson.module}</strong></div><div className="lesson-heading"><div><div className="eyebrow"><span className="eyebrow-line" />{lesson.module}</div><h1>{lesson.title}</h1><p>{lesson.summary}</p></div><div className="lesson-meta"><StatusChip tone="success">access granted</StatusChip><span><Clock3 size={15} /> {lesson.duration}</span></div></div><LessonPlayer lesson={lesson} locked={sessionStale} />{sessionStale && <div className="lesson-lockout"><div className="lockout-icon"><LockKeyhole size={22} /></div><div><strong>Logged in on another device.</strong><span>Please log in again to continue.</span></div><Link href="/student" className="secondary-button compact-button">Return to dashboard <ArrowRight size={15} /></Link></div>}<div className="lesson-support-row"><div className="support-prompt"><div className="help-icon"><Headphones size={18} /></div><div><strong>Stuck on this topic?</strong><span>Send the lesson title to the SafeLearn WhatsApp line.</span></div></div><a href={`https://wa.me/${supportWhatsAppNumber}?text=${encodeURIComponent(`Hi SafeLearn, I am stuck on: ${lesson.title}`)}`} target="_blank" rel="noreferrer" className="whatsapp-link">Ask on WhatsApp <ExternalLink size={15} /></a></div><div className="lesson-notes"><div><span className="eyebrow">Lesson note</span><p>Keep your own working visible while you watch. The fastest revision comes from pausing at the decision point, not the final answer.</p></div><div className="lesson-note-stat"><strong>01</strong><span>clear idea to keep</span></div><div className="lesson-note-stat"><strong>02</strong><span>minutes to reflect</span></div></div></div></AppShell>;
