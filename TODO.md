@@ -9,7 +9,8 @@
 - [x] WhatsApp support links use `233246912468` and pre-populate the lesson title on protected lesson pages.
 - [x] Placeholder lesson slots are defined as “Lesson 1: Introduction (Coming Soon)” for both courses.
 - [x] A repeatable `pnpm bootstrap:supabase` command is available to seed courses, placeholder lessons, and promote the supplied admin emails when their Supabase Auth accounts exist.
-- [x] `pnpm typecheck` and `pnpm build` pass after the production-content changes.
+- [x] Live Supabase course reads, passwordless email sign-in, student entitlement reads, payment-request inserts, admin approval grants, POS Quick-Grant, course-price updates, and single-device session RPC calls are implemented.
+- [x] `pnpm typecheck` and `pnpm build` pass after the production hardening changes; the production server smoke test returns HTTP 200 for all application routes.
 
 ## Blocked pending user action
 
@@ -17,4 +18,3 @@
 - [ ] After the migration, rerun `pnpm bootstrap:supabase` to seed the records and promote `safelearn.contact@gmail.com` and `abdulrecapsall@gmail.com` if those Auth users have been registered.
 - [ ] Provide the real Bunny.net or Cloudflare Stream URLs and replace the placeholder lesson slots.
 - [ ] Provide the Netlify site and GitHub repository target before any deployment is attempted.
-- [ ] Complete the live authenticated data wiring for course reads, access grants, payment requests, and admin mutations after the schema and admin accounts are available.
