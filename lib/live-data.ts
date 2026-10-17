@@ -236,8 +236,8 @@ export async function updateLiveCourse(course: Course, price: number) {
   if (error) throw new Error(`Could not save course pricing: ${error.message}`);
 }
 
-export async function sendMagicLink(email: string) {
+export async function sendMagicLink(email: string, redirectPath = "/") {
   const supabase = getSupabaseBrowserClient();
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}${redirectPath}` } });
   if (error) throw new Error(`Could not send sign-in link: ${error.message}`);
 }
