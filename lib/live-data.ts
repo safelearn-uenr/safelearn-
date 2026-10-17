@@ -236,6 +236,17 @@ export async function updateLiveCourse(course: Course, price: number) {
   if (error) throw new Error(`Could not save course pricing: ${error.message}`);
 }
 
+export async function createLiveCourse(input: { code: string; name: string; slug: string; description: string; price: number }) {
+  const slug = input.slug.trim() || input.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const { error } = await getSupabaseBrowserClient().from("courses").insert({ code: input.code.trim(), name: input.name.trim(), slug, description: input.description.trim(), price_ghs: input.price, is_bundle: false, published: true });
+  if (error) throw new Error(`Could not create course: ${error.message}`);
+}
+
+export async function createLiveLesson(input: { courseId: string; title: string; module: string; duration: string; videoUrl: string; streamType: string }) {
+  const { error } = await getSupabaseBrowserClient().from("lessons").insert({ course_id: input.courseId, title: input.title.trim(), module_label: input.module.trim(), duration_label: input.duration.trim() || "Coming soon", video_url: input.videoUrl.trim(), stream_type: input.streamType, sort_order: 0 });
+  if (error) throw new Error(`Could not add lesson: ${error.message}`);
+}
+
 export async function sendMagicLink(email: string, redirectPath = "/") {
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}${redirectPath}` } });
