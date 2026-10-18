@@ -34,9 +34,9 @@
 ## Remaining before public launch
 
 - [ ] Configure `NEXT_PUBLIC_MOMO_NUMBER` and `NEXT_PUBLIC_MOMO_NAME` in the deployed environment with the final recipient details.
-- [ ] Run `supabase/migrations/003_safelearn_hardening.sql` in the live Supabase SQL Editor; resolve any duplicate transaction IDs if reported.
+- [x] Run `supabase/migrations/003_safelearn_hardening.sql` in the live Supabase SQL Editor; no duplicate transaction IDs were reported.
 - [ ] Replace every real lesson placeholder/test URL with Bunny.net or Cloudflare Stream playback URLs.
 - [ ] Configure signed/expiring playback URLs and host/domain restrictions at Bunny.net or Cloudflare; browser watermarks and shortcut blocking are deterrents, not DRM.
-- [ ] Confirm Supabase Auth Site URL and redirect URLs match the final Netlify domain.
+- [x] Confirm Supabase Auth Site URL and redirect URLs match the final Netlify domain.
 - [ ] Deploy the latest checkpoint to Netlify and verify that the live site contains the new admin builder and account controls.
 - [ ] Test the complete mobile workflow: sign-in, payment request, admin approve/reject, student refresh, protected playback, WhatsApp support, and second-device session lock.
