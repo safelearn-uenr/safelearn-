@@ -5,7 +5,7 @@ import { Check, FilePlus2, Plus, Video } from "lucide-react";
 import { Course } from "@/lib/demo-data";
 import { createLiveCourse, createLiveLesson } from "@/lib/live-data";
 
-const DEMO_VIDEO_URL = "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4";
+const DEMO_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
 type Props = { courses: Course[]; onSavedAction: () => Promise<void> };
 

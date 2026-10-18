@@ -30,7 +30,7 @@ export type PaymentRequest = {
   amount: number;
   transactionId: string;
   submittedAt: string;
-  status: "pending" | "approved";
+  status: "pending" | "approved" | "rejected";
 };
 
 export type AccessGrant = {

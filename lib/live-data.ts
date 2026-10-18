@@ -131,7 +131,7 @@ export async function fetchStudentSnapshot(courses: Course[]): Promise<StudentSn
       amount: Number(request.amount_ghs),
       transactionId: request.transaction_id,
       submittedAt: new Date(request.created_at).toLocaleDateString(),
-      status: request.status === "approved" ? "approved" : "pending"
+      status: request.status
     }))
   };
 }
@@ -166,7 +166,7 @@ export async function fetchAdminSnapshot(courses: Course[]): Promise<AdminSnapsh
       amount: Number(request.amount_ghs),
       transactionId: request.transaction_id,
       submittedAt: new Date(request.created_at).toLocaleDateString(),
-      status: request.status === "approved" ? "approved" : "pending"
+      status: request.status
     }))
   };
 }
@@ -181,12 +181,23 @@ export async function submitLivePaymentRequest(course: Course, contact: string, 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw authRequired();
   if (!course.databaseId) throw new Error("This course is not connected to the live Supabase catalogue yet.");
+  const normalizedContact = contact.trim();
+  const normalizedTransactionId = transactionId.trim().toUpperCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedContact)) throw new Error("Enter a valid email address so we can match your approval.");
+  if (normalizedTransactionId.length < 4 || normalizedTransactionId.length > 80) throw new Error("Enter a valid Mobile Money transaction ID.");
+  const { data: existingRequests, error: duplicateCheckError } = await supabase
+    .from("payment_requests")
+    .select("id,status")
+    .eq("transaction_id", normalizedTransactionId)
+    .limit(1);
+  if (duplicateCheckError) throw new Error(`Could not validate the transaction ID: ${duplicateCheckError.message}`);
+  if (existingRequests?.length) throw new Error("That transaction ID has already been submitted. Contact SafeLearn if you need help.");
 
   const { error } = await supabase.from("payment_requests").insert({
     profile_id: user.id,
     course_id: course.databaseId,
-    contact,
-    transaction_id: transactionId,
+    contact: normalizedContact,
+    transaction_id: normalizedTransactionId,
     amount_ghs: course.price,
     status: "pending"
   });
@@ -195,8 +206,9 @@ export async function submitLivePaymentRequest(course: Course, contact: string, 
 
 export async function approveLivePaymentRequest(requestId: string) {
   const supabase = getSupabaseBrowserClient();
-  const { data: request, error: requestError } = await supabase.from("payment_requests").select("profile_id,course_id").eq("id", requestId).single();
+  const { data: request, error: requestError } = await supabase.from("payment_requests").select("profile_id,course_id,status").eq("id", requestId).single();
   if (requestError) throw new Error(`Could not load payment request: ${requestError.message}`);
+  if (request.status !== "pending") throw new Error("This payment request has already been reviewed.");
   const { data: course, error: courseError } = await supabase.from("courses").select("is_bundle").eq("id", request.course_id).single();
   if (courseError) throw new Error(`Could not load course entitlement: ${courseError.message}`);
 
@@ -209,8 +221,17 @@ export async function approveLivePaymentRequest(requestId: string) {
 
   const { error: grantError } = await supabase.from("access_grants").upsert(courseIds.map((courseId) => ({ profile_id: request.profile_id, course_id: courseId, source: course.is_bundle ? "bundle" : "self_serve" })), { onConflict: "profile_id,course_id" });
   if (grantError) throw new Error(`Could not grant course access: ${grantError.message}`);
-  const { error: updateError } = await supabase.from("payment_requests").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", requestId);
+  const { error: updateError } = await supabase.from("payment_requests").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", requestId).eq("status", "pending");
   if (updateError) throw new Error(`Could not approve payment request: ${updateError.message}`);
+}
+
+export async function rejectLivePaymentRequest(requestId: string) {
+  const { error } = await getSupabaseBrowserClient()
+    .from("payment_requests")
+    .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+    .eq("id", requestId)
+    .eq("status", "pending");
+  if (error) throw new Error(`Could not reject payment request: ${error.message}`);
 }
 
 export async function grantLiveAccess(contact: string, course: Course) {
@@ -232,18 +253,31 @@ export async function grantLiveAccess(contact: string, course: Course) {
 
 export async function updateLiveCourse(course: Course, price: number) {
   if (!course.databaseId) throw new Error("Select a live course before saving.");
+  if (!Number.isFinite(price) || price <= 0) throw new Error("Enter a course price greater than zero.");
   const { error } = await getSupabaseBrowserClient().from("courses").update({ price_ghs: price }).eq("id", course.databaseId);
   if (error) throw new Error(`Could not save course pricing: ${error.message}`);
 }
 
 export async function createLiveCourse(input: { code: string; name: string; slug: string; description: string; price: number }) {
-  const slug = input.slug.trim() || input.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  const { error } = await getSupabaseBrowserClient().from("courses").insert({ code: input.code.trim(), name: input.name.trim(), slug, description: input.description.trim(), price_ghs: input.price, is_bundle: false, published: true });
+  const code = input.code.trim().toUpperCase();
+  const name = input.name.trim();
+  const slug = (input.slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")).replace(/[^a-z0-9-]/g, "-");
+  if (!code || !name || !slug) throw new Error("Course code, name, and slug are required.");
+  if (!Number.isFinite(input.price) || input.price <= 0) throw new Error("Enter a course price greater than zero.");
+  const { error } = await getSupabaseBrowserClient().from("courses").insert({ code, name, slug, description: input.description.trim(), price_ghs: input.price, is_bundle: false, published: true });
   if (error) throw new Error(`Could not create course: ${error.message}`);
 }
 
 export async function createLiveLesson(input: { courseId: string; title: string; module: string; duration: string; videoUrl: string; streamType: string }) {
-  const { error } = await getSupabaseBrowserClient().from("lessons").insert({ course_id: input.courseId, title: input.title.trim(), module_label: input.module.trim(), duration_label: input.duration.trim() || "Coming soon", video_url: input.videoUrl.trim(), stream_type: input.streamType, sort_order: 0 });
+  const videoUrl = input.videoUrl.trim();
+  if (!input.courseId || !input.title.trim()) throw new Error("Choose a course and enter a lesson title.");
+  if (videoUrl && !/^https:\/\//i.test(videoUrl)) throw new Error("Video URLs must start with https://.");
+  const supabase = getSupabaseBrowserClient();
+  const streamType = videoUrl ? (input.streamType === "placeholder" ? "mp4" : input.streamType) : "placeholder";
+  const { data: lastLesson, error: orderError } = await supabase.from("lessons").select("sort_order").eq("course_id", input.courseId).order("sort_order", { ascending: false }).limit(1);
+  if (orderError) throw new Error(`Could not determine lesson order: ${orderError.message}`);
+  const nextOrder = Number(lastLesson?.[0]?.sort_order ?? -1) + 1;
+  const { error } = await supabase.from("lessons").insert({ course_id: input.courseId, title: input.title.trim(), module_label: input.module.trim(), duration_label: input.duration.trim() || "Coming soon", video_url: videoUrl, stream_type: streamType, sort_order: nextOrder });
   if (error) throw new Error(`Could not add lesson: ${error.message}`);
 }
 

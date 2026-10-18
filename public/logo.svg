@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">SafeLearn</title>
+  <desc id="desc">SafeLearn gold signal mark on a dark background</desc>
+  <rect width="256" height="256" rx="48" fill="#151716"/>
+  <g fill="#f4b544" transform="skewX(-18)">
+    <rect x="76" y="53" width="28" height="150" rx="14"/>
+    <rect x="124" y="87" width="28" height="116" rx="14" opacity=".72"/>
+  </g>
+</svg>
