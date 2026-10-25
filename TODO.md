@@ -18,7 +18,7 @@
 - [x] Promote the registered SafeLearn administrator accounts and apply the admin content-management policies.
 - [x] Add and verify the GIS protected-player demo lesson in the live database.
 - [ ] Provide the real Bunny.net or Cloudflare Stream URLs and replace the placeholder lesson slots.
-- [ ] Confirm the Netlify deployment target for the latest checkpoint.
+- [x] Identify the deployment repository as `safelearn-uenr/safelearn-` and confirm the public Netlify target is `https://safelearnapp.netlify.app`.
 
 ## Production hardening completed
 
@@ -30,6 +30,8 @@
 - [x] Protected playback pauses when the active device session becomes stale and disables common download/PiP controls where supported.
 - [x] The admin test-video shortcut uses a verified public MP4 and labels it as test-only.
 - [x] A durable SafeLearn logo asset and `.env.example` public MoMo configuration placeholders are included.
+- [x] Latest managed environment variables were synchronized after credential rotation; the local app responds on port 3000.
+- [x] Current `pnpm typecheck` and `pnpm build` pass, and the application routes plus `/manus-routes.json` return HTTP 200 locally.
 
 ## Remaining before public launch
 
